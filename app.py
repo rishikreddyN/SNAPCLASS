@@ -13,6 +13,10 @@ def main():
     style_base_layout()
     style_background_home()
     style_background_home()
+    st.set_page_config(
+        page_title='SnapClass -Making Attendance Fast using Ai',
+        page_icon="https://i.ibb.co/YYTYGn5qV/logo.png"
+    )
     if 'login_state' not in st.session_state:
         st.session_state['login_state'] = None 
     if st.session_state['login_state']=='student':
