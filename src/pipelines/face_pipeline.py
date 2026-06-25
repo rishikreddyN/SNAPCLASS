@@ -31,18 +31,14 @@ def get_face_embeddings(image_np):
     if len(faces) == 0:
         return []
 
-    # Keep only the largest face
-    faces = sorted(faces, key=lambda f: f.width() * f.height(), reverse=True)
-    faces = [faces[0]]
-
     encodings = []
+
     for face in faces:
         shape = sp(image_np, face)
         face_descriptor = facerec.compute_face_descriptor(image_np, shape, 1)
         encodings.append(np.array(face_descriptor))
 
     return encodings
-
 @st.cache_resource
 def get_trained_model():
     X = []
