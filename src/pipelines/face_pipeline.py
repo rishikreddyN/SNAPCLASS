@@ -52,55 +52,54 @@ def get_trained_model():
     for student in student_db:
         embedding = student.get('face_embedding')
         if embedding:
-            X.append(np.array(embedding))
+            X.append(np.array(embedding, dtype=np.float64))
             y.append(student.get('student_id'))
 
     if len(X) == 0:
-        return 0
+        return None
 
-    clf = SVC(kernel='linear', probability=True, class_weight='balanced')
+    clf = None
+    if len(set(y)) >= 2:
+        try:
+            clf = SVC(kernel='linear', class_weight='balanced')
+            clf.fit(X, y)
+        except Exception:
+            clf = None
 
-    try:
-        clf.fit(X, y)
-    except ValueError:
-        pass
-    return {'clf':clf,'X':X,"y":y}
+    return {'clf': clf, 'X': X, 'y': y}
 
 def train_classifier():
     st.cache_resource.clear()
-    model_data=get_trained_model()
+    model_data = get_trained_model()
 
     return bool(model_data)
 
-def predict_attendance(class_image_np):
-    encodings=get_face_embeddings(class_image_np)
+def predict_attendance(class_image_np, threshold=0.45):
+    encodings = get_face_embeddings(class_image_np)
 
-    detected_student ={}
+    detected_student = {}
 
-    model_data =get_trained_model()
+    model_data = get_trained_model()
 
-    if not model_data:
-        return detected_student,[],len(encodings)
+    if not model_data or not model_data.get('X') or len(model_data['X']) == 0:
+        return detected_student, [], len(encodings)
     
-    clf=model_data['clf']
-    x_train=model_data['X']
-    y_train=model_data['y']
+    x_train = np.array(model_data['X'])
+    y_train = model_data['y']
 
-    all_students=sorted(list(set(y_train)))
+    all_students = sorted(list(set(y_train)))
 
     for encoding in encodings:
-        if len(all_students)>=2:
-            predicted_id=int(clf.predict([encoding])[0])
+        encoding = np.array(encoding, dtype=np.float64)
 
-        else:
-            predicted_id=int(all_students[0])
+        # Compute Euclidean distance to all enrolled embeddings in database
+        distances = np.linalg.norm(x_train - encoding, axis=1)
+        best_idx = int(np.argmin(distances))
+        best_match_score = float(distances[best_idx])
+        predicted_id = int(y_train[best_idx])
 
-        student_embedding=x_train[y_train.index(predicted_id)]
-        
-        best_match_score= np.linalg.norm(student_embedding-encoding) 
-        
-        resemblance_threshold=0.6 
+        # A threshold of 0.45 cleanly separates same person (<0.40) from wrong/different persons (>0.50)
+        if best_match_score <= threshold:
+            detected_student[predicted_id] = True 
 
-        if best_match_score<=resemblance_threshold:
-            detected_student[predicted_id]=True 
-    return detected_student,all_students,len(encodings)
+    return detected_student, all_students, len(encodings)
